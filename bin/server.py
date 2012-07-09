@@ -11,6 +11,3 @@ print 'Server started at PID %d' % os.getpid()
 
 # bring the daemon up
 s.up()
-
-
-# FIXME issues with importing Server from the Daemon module. Probably isn't registered or something

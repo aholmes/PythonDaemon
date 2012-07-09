@@ -13,14 +13,13 @@ class Server(object):
 
 	child_callback     = lambda self, work = {}: None 
 	parent_callback    = lambda self: None 
-	shutdown           = lambda self: None
 
 	def __init__(self, config = {}, daemon_config = {}):
 		self.daemon_config = {
 			'prefork'            : True,
 			'number_of_children' : 2,
 			#'work_data':[{'test':1,'test2':'test'}, {'a':'a'}],
-			# print up the parent and child when the daemon is forked
+			# bring up the parent and child when the daemon is forked
 			'parent_callback'    : self.parent,
 			'child_callback'     : self.child,
 			'shutdown'           : self.shutdown
