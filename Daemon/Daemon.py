@@ -13,6 +13,7 @@ class Daemon(object):
 	number_of_children = 0
 	child_callback     = lambda self, work = {}: None 
 	parent_callback    = lambda self: None 
+	shutdown           = lambda self: None
 
 	# a list of dictionaries: [{'a':'a', 'b:'b'}, {'c':'c'}]
 	work_data          = []
@@ -38,6 +39,9 @@ class Daemon(object):
 
 		if 'work_data' in config:
 			self.work_data = config['work_data']
+
+		if 'shutdown' in config:
+			self.shutdown = config['shutdown']
 
 	def _sig_handle(self, reset=False):
 		if reset == True:
@@ -134,6 +138,8 @@ class Daemon(object):
 
 		if not self.children_pids:
 			return None
+
+		self.shutdown(self)
 
 		for pid, state in self.children_pids.items():
 			if state == self.STATE_TERMINATED:
