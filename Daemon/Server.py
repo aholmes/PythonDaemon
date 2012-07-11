@@ -3,7 +3,8 @@ import socket, os, select, sys, curses, locale, struct
 from time import sleep
 
 class Server(object):
-	socket = None
+	socket        = None
+	client_socket = None
 
 	daemon_config = {}
 
@@ -11,7 +12,7 @@ class Server(object):
 	port    = 1227
 	daemon  = None
 
-	child_callback     = lambda self, work = {}: None 
+	child_callback     = lambda self, client: None 
 	parent_callback    = lambda self: None 
 
 	def __init__(self, config = {}, daemon_config = {}):
@@ -85,8 +86,9 @@ class Server(object):
 
 	# main parent loop. Handle watching children.
 	def parent(self, daemon):
-		while daemon.state[0] == daemon.STATE_RUNNING:
-			sleep(1)
+		if self.parent_callback() == None:
+			while daemon.state[0] == daemon.STATE_RUNNING:
+				sleep(1)
 
 		return True
 
@@ -104,20 +106,10 @@ class Server(object):
 					sleep(1)
 					continue;
 			else:
-				# wait for a ready socket
-				try:
-					read, write, error = select.select(read_sockets, [], [], 60)
-				except select.error, (errno, message):
-					# interrupted system call
-					if errno == 4:
-						sys.exit(0)
+				read, write, error = self._select(read_sockets, [], [], 60)
 
-					print 'IOError, or other exception %r - %r\n' % (errno, message)
-					sys.exit(-1)
-
-				for conn in read:
-					# received new connection, add to list of read sockets to get data from it
-					if conn == self.socket:
+				for connection in read:
+					if connection == self.socket:
 						# accept the socket and add it to our list of ready sockets
 						try:
 							client, address = self.socket.accept()
@@ -127,21 +119,39 @@ class Server(object):
 
 							print 'IOError, or other exception %r - %r' % (errno, message)
 
-						read_sockets.append(client)
-					# selected a ready client, handle it
-					else:
-						print '%d Reading from connection\n' % os.getpid()
-						data = conn.recv(1024)
-						
-						# if we read data, do something
-						if data:
-							print 'Got data'
-							conn.send(data)
-						else:
-							print 'No data'
-							conn.close()
-							read_sockets.remove(conn)
+						# store our client socket for reading in self.recv()
+						self.client_socket = client
 
+						# pass the processing off to the main application
+						self.child_callback(self)
+
+	# handle the boilerplate to select the read-ready sockeet
+	def recv(self, bytes):
+		read, write, error = self._select([self.client_socket])
+		return read[0].recv(bytes)
+
+	# send the data to the right socket
+	def send(self, data):
+		return self.client_socket.send(data)
+	
+	# close the right socket
+	def close(self):
+		return self.client_socket.close()
+
+	# boilerplate to select ready sockets and handle exceptions
+	def _select(self, read_sockets = [], write_sockets = [], except_sockets = [], timeout = 60):
+		# wait for a ready socket
+		try:
+			return select.select(read_sockets, write_sockets, except_sockets, timeout)
+		except select.error, (errno, message):
+			# interrupted system call
+			if errno == 4:
+				sys.exit(0)
+
+			print 'IOError, or other exception %r - %r\n' % (errno, message)
+			sys.exit(-1)
+
+	# close our bound socket
 	def shutdown(self, daemon):
 		self.socket.close()
 		return None
